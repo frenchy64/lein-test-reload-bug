@@ -23,7 +23,11 @@ Before creating a report, _especially_ around exceptions being thrown when runni
 
 **Describe the bug**
 `lein test` can reload namespaces out of order. This can leave deftypes implementing
-expired protocol interfaces, and thus an exception will be thrown if 
+expired protocol interfaces, and thus an exception will be thrown when attempting
+to invoke a protocol method.
+
+This is also a potential performance problem, since a namespace maybe reloaded
+twice.
 
 **To Reproduce**
 The cause of this bug is that `lein test` uses clojure.core/require's :reload flag.
@@ -41,14 +45,45 @@ dependency of A, then via the `:reload` logic.
 If B contains a protocol and A contains a deftype, then
 the deftype will implement a now-stale interface.
 
-A full reproduction of this scenario is demonstrated [here](https://github.com/frenchy64/lein-test-reload-bug),
+This scenario is demonstrated [here](https://github.com/frenchy64/lein-test-reload-bug),
 and can be triggered with `lein test`.
 
-**Actual behavior**
+The concrete scenario involves 2 namespaces:
 
+```clojure
+(ns lein-test-reload-bug.a-deftype
+  (:require [lein-test-reload-bug.b-protocol
+             :refer [B]]))
+
+(deftype A []
+  B
+  (b [this]))
+```
+
+```clojure
+(ns lein-test-reload-bug.b-protocol)
+
+(defprotocol B
+  (b [this]))
+```
+
+Notice how this matches the hypothetical scenario, except
+- A = lein-test-reload-bug.a-deftype
+- B = lein-test-reload-bug.b-protocol
+
+The following require is triggered by `lein test`.
+
+```
+(require :reload 'lein-test-reload-bug.a-deftype
+                 'lein-test-reload-bug.b-protocol)
+```
+
+**Actual behavior**
+`lein-test-reload-bug.b-protocol` is loaded twice, the second time is _after_
+`lein-test-reload-bug.a-deftype`, thus leaving it in a bad state.
 
 **Expected behavior**
-A clear and concise description of what you expected to happen.
+`lein-test-reload-bug.b-protocol` is loaded exactly once.
 
 **Link to sample project**
 https://github.com/frenchy64/lein-test-reload-bug
@@ -74,21 +109,21 @@ OpenJDK 64-Bit Server VM (AdoptOpenJDK)(build 25.275-b01, mixed mode)
 See `lein-test-reload-bug.core-test` for explanation.
 
 ```
-~/Projects/lein-test-reload-bug master !1 ❯ lein version                                                                                                    
+bash-5.0$ lein version
 Leiningen 2.9.5 on Java 1.8.0_275 OpenJDK 64-Bit Server VM
-~/Projects/lein-test-reload-bug master !1 ❯ java -version                                                                                                   
+bash-5.0$ java -version
 openjdk version "1.8.0_275"
 OpenJDK Runtime Environment (AdoptOpenJDK)(build 1.8.0_275-b01)
 OpenJDK 64-Bit Server VM (AdoptOpenJDK)(build 25.275-b01, mixed mode)
-~/Projects/lein-test-reload-bug master !1 ❯ lein test                                                                                                       
+bash-5.0$ lein test
 "loading" lein-test-reload-bug.a-deftype
 "loading" lein-test-reload-bug.b-protocol
-"loading" lein-test-reload-bug.a-protocol
-"loading" lein-test-reload-bug.b-deftype
 "loading" lein-test-reload-bug.b-protocol
 "loading" lein-test-reload-bug.core-test
 
 lein test lein-test-reload-bug.core-test
+"The current hash of interface lein_test_reload_bug.b_protocol.B is" 1214133948
+"The current instance of A implements lein_test_reload_bug.b_protocol.B with hash" -1634164376
 
 lein test :only lein-test-reload-bug.core-test/a-test
 
@@ -99,9 +134,9 @@ expected: nil
 _bug.a_deftype.A
  at clojure.core$_cache_protocol_fn.invokeStatic (core_deftype.clj:583)
     clojure.core$_cache_protocol_fn.invoke (core_deftype.clj:575)
-    lein_test_reload_bug.b_protocol$eval473$fn__474$G__464__479.invoke (b_protocol.clj:5)
-    lein_test_reload_bug.core_test$fn__502.invokeStatic (core_test.clj:37)
-    lein_test_reload_bug.core_test/fn (core_test.clj:31)
+    lein_test_reload_bug.b_protocol$eval418$fn__419$G__409__424.invoke (b_protocol.clj:5)
+    lein_test_reload_bug.core_test$fn__448.invokeStatic (core_test.clj:39)
+    lein_test_reload_bug.core_test/fn (core_test.clj:29)
     clojure.test$test_var$fn__9737.invoke (test.clj:717)
     clojure.test$test_var.invokeStatic (test.clj:717)
     clojure.test$test_var.invoke (test.clj:708)
@@ -115,18 +150,18 @@ _bug.a_deftype.A
     clojure.test$test_all_vars.invokeStatic (test.clj:737)
     clojure.test$test_ns.invokeStatic (test.clj:758)
     clojure.test$test_ns.invoke (test.clj:743)
-    user$eval224$fn__287.invoke (form-init7833296088705208924.clj:1)
+    user$eval224$fn__287.invoke (form-init5338889162230199148.clj:1)
     clojure.lang.AFn.applyToHelper (AFn.java:156)
     clojure.lang.AFn.applyTo (AFn.java:144)
     clojure.core$apply.invokeStatic (core.clj:667)
     clojure.core$apply.invoke (core.clj:660)
-    leiningen.core.injected$compose_hooks$fn__154.doInvoke (form-init7833296088705208924.clj:1)
+    leiningen.core.injected$compose_hooks$fn__154.doInvoke (form-init5338889162230199148.clj:1)
     clojure.lang.RestFn.applyTo (RestFn.java:137)
     clojure.core$apply.invokeStatic (core.clj:665)
     clojure.core$apply.invoke (core.clj:660)
-    leiningen.core.injected$run_hooks.invokeStatic (form-init7833296088705208924.clj:1)
-    leiningen.core.injected$run_hooks.invoke (form-init7833296088705208924.clj:1)
-    leiningen.core.injected$prepare_for_hooks$fn__159$fn__160.doInvoke (form-init7833296088705208924.clj:1)
+    leiningen.core.injected$run_hooks.invokeStatic (form-init5338889162230199148.clj:1)
+    leiningen.core.injected$run_hooks.invoke (form-init5338889162230199148.clj:1)
+    leiningen.core.injected$prepare_for_hooks$fn__159$fn__160.doInvoke (form-init5338889162230199148.clj:1)
     clojure.lang.RestFn.applyTo (RestFn.java:137)
     clojure.lang.AFunction$1.doInvoke (AFunction.java:31)
     clojure.lang.RestFn.invoke (RestFn.java:408)
@@ -142,11 +177,11 @@ _bug.a_deftype.A
     clojure.lang.RestFn.applyTo (RestFn.java:137)
     clojure.core$apply.invokeStatic (core.clj:665)
     clojure.core$apply.invoke (core.clj:660)
-    user$eval224$fn__299$fn__332.invoke (form-init7833296088705208924.clj:1)
-    user$eval224$fn__299$fn__300.invoke (form-init7833296088705208924.clj:1)
-    user$eval224$fn__299.invoke (form-init7833296088705208924.clj:1)
-    user$eval224.invokeStatic (form-init7833296088705208924.clj:1)
-    user$eval224.invoke (form-init7833296088705208924.clj:1)
+    user$eval224$fn__299$fn__332.invoke (form-init5338889162230199148.clj:1)
+    user$eval224$fn__299$fn__300.invoke (form-init5338889162230199148.clj:1)
+    user$eval224$fn__299.invoke (form-init5338889162230199148.clj:1)
+    user$eval224.invokeStatic (form-init5338889162230199148.clj:1)
+    user$eval224.invoke (form-init5338889162230199148.clj:1)
     clojure.lang.Compiler.eval (Compiler.java:7177)
     clojure.lang.Compiler.eval (Compiler.java:7167)
     clojure.lang.Compiler.load (Compiler.java:7636)
@@ -166,7 +201,7 @@ _bug.a_deftype.A
 Ran 1 tests containing 1 assertions.
 0 failures, 1 errors.
 Tests failed.
-~/Projects/lein-test-reload-bug master !1 ❮                                                                                                              3s 
+bash-5.0$
 ```
 
 ## License

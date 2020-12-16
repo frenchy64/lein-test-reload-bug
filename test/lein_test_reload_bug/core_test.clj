@@ -2,14 +2,11 @@
 
 (ns lein-test-reload-bug.core-test
   (:require [clojure.test :refer [deftest]]
-            [lein-test-reload-bug.a-protocol :as ap]
-            [lein-test-reload-bug.a-deftype :as at]
-            [lein-test-reload-bug.b-protocol :as bp]
-            [lein-test-reload-bug.b-deftype :as bt]))
+            [lein-test-reload-bug.a-deftype :refer [->A]]
+            [lein-test-reload-bug.b-protocol :refer [b]]))
 
-;; `lein test` seems to load namespace in some unspecified order.
-;; I've tried to construct this test to always fail no matter the order,
-;; but it might not always fail on your machine.
+;; `lein test` seems to load namespaces in lexicographic order.
+;; I'm using that assumption to make this reproduction.
 ;;
 ;; In theory, the bug stems from the fact that
 ;;   (require :reload 'A 'B)
@@ -20,18 +17,23 @@
 ;;
 ;; 1. "loading" lein-test-reload-bug.a-deftype
 ;; 2. "loading" lein-test-reload-bug.b-protocol
-;; 3. "loading" lein-test-reload-bug.a-protocol
-;; 4. "loading" lein-test-reload-bug.b-deftype
-;; 5. "loading" lein-test-reload-bug.b-protocol
-;; 6. "loading" lein-test-reload-bug.core-test
+;; 3. "loading" lein-test-reload-bug.b-protocol
+;; 4. "loading" lein-test-reload-bug.core-test
 ;;
 ;; Notice b-protocol is loaded twice:
 ;; - in step 2 as a dependency of a-deftype
-;; - in step 5, presumably by the require :reload in `lein test`'s impl
+;; - in step 3, presumably by the require :reload in `lein test`'s impl
+;; 
+;; Since a-deftype is loaded only once, it keeps the stale protocol reference
+;; from step 2, which triggers the usual namespace reloading problems.
 (deftest a-test
-  ;; if lein-test-reload-bug.a-protocol is loaded after
-  ;; lein-test-reload-bug.b-deftype this call will fail
-  (ap/a (bt/->B))
-  ;; if lein-test-reload-bug.b-protocol is loaded after
-  ;; lein-test-reload-bug.a-deftype this call will fail
-  (bp/b (at/->A)))
+  (let [a (->A)]
+    (prn "The current hash of interface lein_test_reload_bug.b_protocol.B is" (hash lein_test_reload_bug.b_protocol.B))
+    (prn "The current instance of A implements lein_test_reload_bug.b_protocol.B with hash"
+         (-> (into {}
+                   (map (juxt #(.getName ^Class %) hash))
+                   (-> a class supers))
+             (get "lein_test_reload_bug.b_protocol.B")
+             (doto (-> assert class?))
+             hash))
+    (b a)))
