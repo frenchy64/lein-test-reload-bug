@@ -22,31 +22,24 @@ Before creating a report, _especially_ around exceptions being thrown when runni
 - [x] (If you are using Java 9 or newer), updating your dependencies to their most recent versions. Recent JDK's have introduced changes which can break some Clojure libraries.
 
 **Describe the bug**
-`lein test` can reload namespaces out of order. This can leave deftypes implementing
-expired protocol interfaces, and thus an exception will be thrown when attempting
-to invoke a protocol method.
+`lein test` can reload namespaces out of order. This can leave deftypes implementing expired protocol interfaces, and thus an exception will be thrown when attempting to invoke a protocol method.
 
-This is also a potential performance problem, since a namespace maybe reloaded
-twice.
+This is also a potential performance problem, since a namespace maybe reloaded twice.
 
 **To Reproduce**
 A possible cause of this bug is that `lein test` uses clojure.core/require's :reload flag.
 
-Working backwards from there, a simple way to make `require :reload`
-reload things out of order is to call
+Working backwards from there, a simple way to make `require :reload` reload things out of order is to call
 
 ```clojure
 (require :reload 'A 'B)
 ```
 
-where A depends on B. B will be loaded twice, first as a 
-dependency of A, then via the `:reload` logic.
+where A depends on B. B will be loaded twice, first as a dependency of A, then via the `:reload` logic.
 
-If B contains a protocol and A contains a deftype, then
-the deftype will implement a now-stale interface.
+If B contains a protocol and A contains a deftype, then the deftype will implement a now-stale interface.
 
-This scenario is demonstrated [here](https://github.com/frenchy64/lein-test-reload-bug),
-and can be triggered with `lein test`.
+This scenario is demonstrated [here](https://github.com/frenchy64/lein-test-reload-bug), and can be triggered with `lein test`.
 
 The concrete scenario involves 2 namespaces:
 
@@ -79,11 +72,9 @@ The following require is called by `lein test`:
 ```
 
 **Actual behavior**
-`lein-test-reload-bug.b-protocol` is loaded twice, the second time is _after_
-`lein-test-reload-bug.a-deftype`, thus leaving it in a bad state.
+`lein-test-reload-bug.b-protocol` is loaded twice, the second time is _after_ `lein-test-reload-bug.a-deftype`, thus leaving it in a bad state.
 
-It is now impossible to make instances of A that can be called via the protocol,
-because it implements an old protocol.
+It is now impossible to make instances of A that can be called via the protocol, because it implements an old protocol.
 
 Relevant output from sample project: 
 
@@ -104,8 +95,7 @@ _bug.a_deftype.A
 <SNIP>
 ```
 
-See `lein-test-reload-bug.core-test/a-test` for exact test setup, but it boils
-down to the familiar "Foo is not Foo" problem.
+See `lein-test-reload-bug.core-test/a-test` for exact test setup, but it boils down to the familiar "Foo is not Foo" problem.
 
 **Expected behavior**
 `lein-test-reload-bug.b-protocol` is loaded exactly once.
