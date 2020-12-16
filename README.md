@@ -71,9 +71,9 @@ Notice how this matches the hypothetical scenario, except
 - A = lein-test-reload-bug.a-deftype
 - B = lein-test-reload-bug.b-protocol
 
-The following require is triggered by `lein test`.
+The following require is called by `lein test`:
 
-```
+```clojure
 (require :reload 'lein-test-reload-bug.a-deftype
                  'lein-test-reload-bug.b-protocol)
 ```
@@ -81,6 +81,31 @@ The following require is triggered by `lein test`.
 **Actual behavior**
 `lein-test-reload-bug.b-protocol` is loaded twice, the second time is _after_
 `lein-test-reload-bug.a-deftype`, thus leaving it in a bad state.
+
+It is now impossible to make instances of A that can be called via the protocol,
+because it implements an old protocol.
+
+Relevant output from sample project: 
+
+```clojure
+lein test lein-test-reload-bug.core-test
+"The current hash of interface lein_test_reload_bug.b_protocol.B is" 1214133948
+"The current instance of A implements lein_test_reload_bug.b_protocol.B with hash" -1634164376
+
+ERROR in (a-test) (core_deftype.clj:583)
+Uncaught exception, not in assertion.
+expected: nil
+  actual: java.lang.IllegalArgumentException: No implementation of method: :b of protocol: #'lein-test-reload-bug.b-protocol/B found for class: lein_test_reload
+_bug.a_deftype.A
+ at clojure.core$_cache_protocol_fn.invokeStatic (core_deftype.clj:583)
+    clojure.core$_cache_protocol_fn.invoke (core_deftype.clj:575)
+    lein_test_reload_bug.b_protocol$eval418$fn__419$G__409__424.invoke (b_protocol.clj:5)
+    lein_test_reload_bug.core_test$fn__448.invokeStatic (core_test.clj:39)
+<SNIP>
+```
+
+See `lein-test-reload-bug.core-test/a-test` for exact test setup, but it boils
+down to the familiar "Foo is not Foo" problem.
 
 **Expected behavior**
 `lein-test-reload-bug.b-protocol` is loaded exactly once.
@@ -104,7 +129,7 @@ OpenJDK 64-Bit Server VM (AdoptOpenJDK)(build 25.275-b01, mixed mode)
 
 **Additional context**
 
-## Usage
+## Reproduction
 
 See `lein-test-reload-bug.core-test` for explanation.
 
