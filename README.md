@@ -114,7 +114,7 @@ down to the familiar "Foo is not Foo" problem.
 https://github.com/frenchy64/lein-test-reload-bug
 
 **Logs**
-If applicable, add logs to help explain your problem, including the command that you ran. If the logs are very large, please put them in a [gist](https://gist.github.com/).
+- [Full reproduction log](https://github.com/frenchy64/lein-test-reload-bug#reproduction)
 
 **Environment**
 - Leiningen Version: `Leiningen 2.9.5 on Java 1.8.0_275 OpenJDK 64-Bit Server VM`
