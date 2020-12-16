@@ -30,12 +30,12 @@ This is also a potential performance problem, since a namespace maybe reloaded
 twice.
 
 **To Reproduce**
-The cause of this bug is that `lein test` uses clojure.core/require's :reload flag.
+A possible cause of this bug is that `lein test` uses clojure.core/require's :reload flag.
 
 Working backwards from there, a simple way to make `require :reload`
 reload things out of order is to call
 
-```
+```clojure
 (require :reload 'A 'B)
 ```
 
